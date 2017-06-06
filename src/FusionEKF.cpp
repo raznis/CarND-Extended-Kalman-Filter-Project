@@ -86,18 +86,22 @@ void FusionEKF::ProcessMeasurement(const MeasurementPackage &measurement_pack) {
       /**
       Convert radar from polar to cartesian coordinates and initialize state.
       */
+    	cout << "Initializing with RADAR measurement." << endl;
         float ro     = measurement_pack.raw_measurements_(0);
         float phi    = measurement_pack.raw_measurements_(1);
         float ro_dot = measurement_pack.raw_measurements_(2);
+        cout << "ro     * cos(phi): " << ro     * cos(phi) <<endl;
+        cout << "ro     * sin(phi): " << ro     * sin(phi) <<endl;
         ekf_.x_(0) = ro     * cos(phi);
         ekf_.x_(1) = ro     * sin(phi);
-        ekf_.x_(2) = ro_dot * cos(phi);
-        ekf_.x_(3) = ro_dot * sin(phi);
+//        ekf_.x_(2) = ro_dot * cos(phi);
+//        ekf_.x_(3) = ro_dot * sin(phi);
     }
     else if (measurement_pack.sensor_type_ == MeasurementPackage::LASER) {
       /**
       Initialize state.
       */
+    	cout << "Initializing with LIDAR measurement." << endl;
     	ekf_.x_(0) = measurement_pack.raw_measurements_(0);
     	ekf_.x_(1) = measurement_pack.raw_measurements_(1);
 
@@ -105,6 +109,7 @@ void FusionEKF::ProcessMeasurement(const MeasurementPackage &measurement_pack) {
 
     // done initializing, no need to predict or update
     is_initialized_ = true;
+    previous_timestamp_ = measurement_pack.timestamp_;
     return;
   }
 
@@ -122,7 +127,9 @@ void FusionEKF::ProcessMeasurement(const MeasurementPackage &measurement_pack) {
   float dt = (measurement_pack.timestamp_ - previous_timestamp_) / 1000000.0;	//dt - expressed in seconds
   previous_timestamp_ = measurement_pack.timestamp_;
 
-  float dt_squared = dt * dt;
+  float dt_2 = dt * dt;
+  float dt_3 = dt_2 * dt;
+  float dt_4 = dt_3 * dt;
   //Update the state transition matrix F according to the new elapsed time.
   ekf_.F_(0, 2) = dt;
   ekf_.F_(1, 3) = dt;
@@ -130,12 +137,11 @@ void FusionEKF::ProcessMeasurement(const MeasurementPackage &measurement_pack) {
   float noise_ax = 9;
   float noise_ay = 9;
 
-  ekf_.Q_ = MatrixXd(4,4);
   ekf_.Q_ = MatrixXd(4, 4);
-  ekf_.Q_ << (dt_squared * dt_squared) / 4 * noise_ax, 0, (dt_squared * dt) / 2 * noise_ax, 0,
-             0, (dt_squared * dt_squared) / 4 * noise_ay, 0, (dt_squared * dt) / 2 * noise_ay,
-             (dt_squared * dt) / 2 * noise_ax, 0, dt_squared*noise_ax, 0,
-             0, (dt_squared * dt) / 2 * noise_ay, 0, dt_squared*noise_ay;
+  ekf_.Q_ << dt_4/4*noise_ax, 0, dt_3/2*noise_ax, 0,
+             0, dt_4/4*noise_ay, 0, dt_3/2*noise_ay,
+             dt_3/2*noise_ax, 0, dt_2*noise_ax, 0,
+             0, dt_3/2*noise_ay, 0, dt_2*noise_ay;
 
   ekf_.Predict();
 

@@ -3,6 +3,8 @@
 
 using Eigen::MatrixXd;
 using Eigen::VectorXd;
+using namespace std;
+#include <iostream>
 
 KalmanFilter::KalmanFilter() {}
 
@@ -50,30 +52,51 @@ void KalmanFilter::UpdateEKF(const VectorXd &z) {
   TODO:
     * update the state by using Extended Kalman Filter equations
   */
-	  double range = sqrt((x_[0] * x_[0]) + (x_[1] * x_[1]));
+	  // convert the x_ vector from cartesian to polar coords so that it can be compared against raw_measurements
+	  float px = x_[0];
+	  float py = x_[1];
+	  float vx = x_[2];
+	  float vy = x_[3];
 
-	  double rr, bearing;
-	  if (fabs(range) > 0.001) {
-	    bearing = atan2(x_[1], x_[0]);
-	    rr = ((x_[0] * x_[2] + x_[1] * x_[3]) / range);
-	  } else {
-	    bearing = 0;
-	    rr = 0;
+	  // accomodate for divide by 0 error (same as in Hj calculation in tools.cpp)
+	  float c1 = px*px + py*py;
+	  // if division by zero, set denominator to a small number
+	  while(fabs(c1) < 0.0001){
+	    cout << "ro_dot - Error - Division by Zero" << endl;
+	    cout << "px=" << px << " and py=" << py << " ... adding 0.001 and continuing" << endl;
+	    px += 0.001;
+	    py += 0.001;
+	    c1 = px*px + py*py;
 	  }
 
-	  MatrixXd z_pred(3, 1);
-	  z_pred << range, bearing, rr;
-	  VectorXd y = z - z_pred;
+	  float ro = sqrt(px*px + py*py);
+	  float phi = atan2(py, px);
+	  float ro_dot = (px*vx + py*vy)/ro;                //Caution, potential divide by 0 error....
+	  VectorXd z_pred_polar = VectorXd(3);
+	  z_pred_polar << ro, phi, ro_dot;
 
-	  MatrixXd Ht = H_.transpose();
-	  MatrixXd S = H_ * P_ * Ht + R_;
+	  // the Jacobian matrix is fed into this function as H_
+	  MatrixXd Hj_ = H_;
+	  MatrixXd Hjt = Hj_.transpose();
+	  // x_ is converted to cartesian coordinates in FusionEKF.cpp
+	  VectorXd y = z - z_pred_polar;
+
+	  if (y[1] > M_PI) {
+	    y[1] = y[1] - 2*M_PI;
+	  }
+	  else if (y[1] < -M_PI) {
+	    y[1] = y[1] + 2 * M_PI;
+	  }
+
+
+	  MatrixXd S = Hj_ * P_ * Hjt + R_;
 	  MatrixXd Si = S.inverse();
-	  MatrixXd PHt = P_ * Ht;
-	  MatrixXd K = PHt * Si;
+	  MatrixXd PHjt = P_ * Hjt;
+	  MatrixXd K = PHjt * Si;
 
-	  //new estimate
+	  // new estimate
 	  x_ = x_ + (K * y);
 	  long x_size = x_.size();
 	  MatrixXd I = MatrixXd::Identity(x_size, x_size);
-	  P_ = (I - K * H_) * P_;
+	  P_ = (I - K * Hj_) * P_;
 }
