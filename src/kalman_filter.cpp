@@ -52,18 +52,13 @@ void KalmanFilter::UpdateEKF(const VectorXd &z) {
   TODO:
     * update the state by using Extended Kalman Filter equations
   */
-	  // convert the x_ vector from cartesian to polar coords so that it can be compared against raw_measurements
 	  float px = x_[0];
 	  float py = x_[1];
 	  float vx = x_[2];
 	  float vy = x_[3];
 
-	  // accomodate for divide by 0 error (same as in Hj calculation in tools.cpp)
 	  float c1 = px*px + py*py;
-	  // if division by zero, set denominator to a small number
 	  while(fabs(c1) < 0.0001){
-	    cout << "ro_dot - Error - Division by Zero" << endl;
-	    cout << "px=" << px << " and py=" << py << " ... adding 0.001 and continuing" << endl;
 	    px += 0.001;
 	    py += 0.001;
 	    c1 = px*px + py*py;
@@ -71,14 +66,12 @@ void KalmanFilter::UpdateEKF(const VectorXd &z) {
 
 	  float ro = sqrt(px*px + py*py);
 	  float phi = atan2(py, px);
-	  float ro_dot = (px*vx + py*vy)/ro;                //Caution, potential divide by 0 error....
+	  float ro_dot = (px*vx + py*vy)/ro;
 	  VectorXd z_pred_polar = VectorXd(3);
 	  z_pred_polar << ro, phi, ro_dot;
 
-	  // the Jacobian matrix is fed into this function as H_
 	  MatrixXd Hj_ = H_;
 	  MatrixXd Hjt = Hj_.transpose();
-	  // x_ is converted to cartesian coordinates in FusionEKF.cpp
 	  VectorXd y = z - z_pred_polar;
 
 	  if (y[1] > M_PI) {
